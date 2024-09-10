@@ -7,9 +7,10 @@ Active Inference-based Planning for Safe Human-Robot Interaction: Concurrent Con
 We develop the algorithm for a autonomous vehicle to safely and actively interact with an uncertain human-driven vehicle.
 
 ## Paper
+Y. Nam and C. Kwon “Active Inference-Based Planning for Safe Human-Robot Interaction: Concurrent Consideration of Human Characteristic and Rationality,” IEEE Robotics and Automation Letters, Vol. 9, No. 8, Page 7086-7093, August 2024 [(Link)](https://ieeexplore.ieee.org/document/10561626)
 
 ## Experiment Results
-[![Video Label](http://img.youtube.com/vi/UGte64IgJBk/0.jpg)](https://youtu.be/UGte64IgJBk)
+[![Video Label](http://img.youtube.com/vi/6081U1P5cSU/0.jpg)](https://youtu.be/6081U1P5cSU?feature=shared)
 
 ## Dependency
 1. NVIDIA Graphic card and torch is required
