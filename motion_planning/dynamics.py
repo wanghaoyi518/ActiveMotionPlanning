@@ -110,13 +110,16 @@ class VehicleDyanmics:
         return dfdu
 
     def update(self, x0, u):
-        delta = u[1]
-        a = u[0]
+        u_flat = np.array(u).flatten()
+        x0_flat = np.array(x0).flatten()
+        
+        delta = float(u_flat[1])
+        a = float(u_flat[0])
 
-        x = x0[0] + x0[3] * np.cos(x0[2]) * self.dt
-        y = x0[1] + x0[3] * np.sin(x0[2]) * self.dt
-        yaw = x0[2] + x0[3]* np.tan(delta) * self.dt/ self.L 
-        v = x0[3] + a * self.dt 
+        x = float(x0_flat[0]) + float(x0_flat[3]) * np.cos(float(x0_flat[2])) * self.dt
+        y = float(x0_flat[1]) + float(x0_flat[3]) * np.sin(float(x0_flat[2])) * self.dt
+        yaw = float(x0_flat[2]) + float(x0_flat[3])* np.tan(delta) * self.dt/ self.L 
+        v = float(x0_flat[3]) + a * self.dt 
 
         # try:
         #     if abs(delta) >= 0.2:

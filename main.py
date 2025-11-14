@@ -2,9 +2,13 @@ import math
 import numpy as np
 import bisect
 import torch 
+import matplotlib
+matplotlib.use('Agg')  # Use non-interactive backend for SSH/server environments
 import matplotlib.pyplot as plt
 import matplotlib.lines as line
 from scipy.stats import truncnorm
+import os
+from datetime import datetime
 
 import warnings
 
@@ -21,13 +25,20 @@ from human_model.iLQcost import *
 from human_model.solveiLQgame import *
 from human_model.PlayerCost import *
 
+from analyze_results import analyze_and_visualize_results
 
 plot_offline = True
-plot_trajectory = False
+plot_trajectory = True
 warnings.filterwarnings(action='ignore')
 
 
 for trial in range(0,1):
+    
+    # Create timestamped result directory
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    result_dir = f'./result/AMP/{timestamp}'
+    os.makedirs(result_dir, exist_ok=True)
+    print(f"Results will be saved to: {result_dir}")
     
     ''' 
         Initilize the paramters 
@@ -72,19 +83,42 @@ for trial in range(0,1):
     ref_h = rf.reference(dt, 1, 1, pts_h)
 
     if plot_trajectory:
-        plt.plot(ref_h.ref_pts[:,0], ref_h.ref_pts[:,1], "xb", label="input")
-        plt.plot(ref_r.ref_pts[:,0], ref_r.ref_pts[:,1], "xr", label="input")
-        plt.plot(ref_h.cx, ref_h.cy, "--b")
-        plt.plot(ref_r.cx, ref_r.cy, "--r")
+        plt.figure(figsize=(12, 12))
+        
+        # Plot reference trajectories first
+        plt.plot(ref_h.cx, ref_h.cy, "--b", linewidth=2, label="Human Reference Trajectory", alpha=0.8)
+        plt.plot(ref_r.cx, ref_r.cy, "--r", linewidth=2, label="Ego Reference Trajectory", alpha=0.8)
+        
+        # Plot reference points
+        plt.plot(ref_h.ref_pts[:,0], ref_h.ref_pts[:,1], "xb", markersize=10, label="Human Reference Points", zorder=5)
+        plt.plot(ref_r.ref_pts[:,0], ref_r.ref_pts[:,1], "xr", markersize=10, label="Ego Reference Points", zorder=5)
 
-        plt.hlines(y=rd_width, xmin=-15, xmax=rd_length, color='black', linestyle='solid')
-        plt.hlines(y=0.0, xmin=-15, xmax=-rd_width/2, color='black', linestyle='solid')
-        plt.hlines(y=0.0, xmin=rd_width/2, xmax=rd_length, color='black', linestyle='solid')
-
-        plt.vlines(x=-rd_width/2, ymin=-15.0, ymax=0.0, color='black', linestyle='solid')
-        plt.vlines(x=rd_width/2, ymin=-15.0, ymax=0.0, color='black', linestyle='solid')
-        plt.axes().set_aspect('equal')
-        plt.show()
+        # Draw intersection boundaries
+        plt.hlines(y=rd_width, xmin=-15, xmax=rd_length, color='black', linestyle='solid', linewidth=2)
+        plt.hlines(y=0.0, xmin=-15, xmax=-rd_width/2, color='black', linestyle='solid', linewidth=2)
+        plt.hlines(y=0.0, xmin=rd_width/2, xmax=rd_length, color='black', linestyle='solid', linewidth=2)
+        plt.vlines(x=-rd_width/2, ymin=-15.0, ymax=0.0, color='black', linestyle='solid', linewidth=2)
+        plt.vlines(x=rd_width/2, ymin=-15.0, ymax=0.0, color='black', linestyle='solid', linewidth=2)
+        plt.vlines(x=-rd_width/2, ymin=rd_width, ymax=rd_length, color='black', linestyle='solid', linewidth=2)
+        plt.vlines(x=rd_width/2, ymin=rd_width, ymax=rd_length, color='black', linestyle='solid', linewidth=2)
+        
+        # Set appropriate axis limits to show all trajectories
+        all_x = np.concatenate([ref_h.cx, ref_r.cx, ref_h.ref_pts[:,0], ref_r.ref_pts[:,0]])
+        all_y = np.concatenate([ref_h.cy, ref_r.cy, ref_h.ref_pts[:,1], ref_r.ref_pts[:,1]])
+        x_margin = (np.max(all_x) - np.min(all_x)) * 0.1
+        y_margin = (np.max(all_y) - np.min(all_y)) * 0.1
+        plt.xlim([np.min(all_x) - x_margin, np.max(all_x) + x_margin])
+        plt.ylim([np.min(all_y) - y_margin, np.max(all_y) + y_margin])
+        
+        plt.xlabel('X (m)', fontsize=12)
+        plt.ylabel('Y (m)', fontsize=12)
+        plt.title('Reference Trajectories', fontsize=14, fontweight='bold')
+        plt.legend(loc='best', fontsize=10)
+        plt.grid(True, alpha=0.3)
+        plt.axis('equal')
+        plt.savefig(f'{result_dir}/reference_trajectories.png', dpi=300, bbox_inches='tight')
+        print(f"Reference trajectories saved to: {result_dir}/reference_trajectories.png")
+        plt.close()
         
 
     ## Initionalize dynamics and optimization
@@ -222,7 +256,11 @@ for trial in range(0,1):
         beta = beta_lim[0]
     elif beta >= beta_lim[1]:
         beta = beta_lim[1]
+
+
+    #switch between attentive and distracted human
     theta = 'a'
+    # theta = 'd'
 
 
     '''
@@ -290,14 +328,14 @@ for trial in range(0,1):
         uH_D = ilq_results_D.ilq_solve.best_operating_point.us[0,:2]
 
         ## Attentive Human
-        u0_A = np.array([uH_A[0,], uH_A[1,],uR[0], uR[1]])
+        u0_A = np.array([uH_A[0,0], uH_A[1,0], uR[0], uR[1]])
         A, B = dynamics_A.linearizeDiscrete_Interaction(x0, u0_A)
         Sigma_A = get_covariance(RH_A, B[0], ilq_results_A.ilq_solve.best_operating_point.Zs[0,0])
         Sigma_A = np.linalg.inv(Sigma_A)
         Sigma_A = np.abs(Sigma_A)
 
         ## Distracted Human
-        u0_D = np.array([uH_D[0,], uH_D[1,],uR[0], uR[1]])
+        u0_D = np.array([uH_D[0,0], uH_D[1,0], uR[0], uR[1]])
         A, B = dynamics_D.linearizeDiscrete_Interaction(x0, u0_D)
         Sigma_D = get_covariance(RH_D, B[0], ilq_results_D.ilq_solve.best_operating_point.Zs[0,0])
         Sigma_D = np.linalg.inv(Sigma_D)
@@ -375,7 +413,7 @@ for trial in range(0,1):
             print("error truncated beta is: %f, predicted beta is: %f " %(error, error2))
             print("curent_prob: ", theta_prob[1])
             THETA.append(theta_prob[1])
-            BETA.append(beta_distr.s.trunc_mu)
+            BETA.append(beta_distr.d.trunc_mu)
 
         x0[:4] = xH.reshape(4,)
         x0[4:] = xR.reshape(4,)
@@ -453,9 +491,93 @@ for trial in range(0,1):
 
             plt.pause(0.0001)
             plt.draw()
+        
+        # Save final trajectory as static image
+        plt.figure(figsize=(12, 12))
+        plot_intersection(rd_width, rd_length, 30)
+        
+        Human_traj_ = np.array(Human_traj)
+        Ego_traj_ = np.array(Ego_traj)
+        
+        plt.plot(Human_traj_[:,0], Human_traj_[:,1], '-', color='grey', linewidth=2, label='Human Vehicle', alpha=0.7)
+        plt.plot(Ego_traj_[:,0], Ego_traj_[:,1], '--', color='yellow', linewidth=2, label='Ego Vehicle', alpha=0.7)
+        
+        # Draw start and end points
+        plt.plot(Human_traj_[0,0], Human_traj_[0,1], 'go', markersize=10, label='Start')
+        plt.plot(Human_traj_[-1,0], Human_traj_[-1,1], 'rs', markersize=10, label='End')
+        plt.plot(Ego_traj_[0,0], Ego_traj_[0,1], 'go', markersize=10)
+        plt.plot(Ego_traj_[-1,0], Ego_traj_[-1,1], 'rs', markersize=10)
+        
+        # Draw final vehicle positions
+        if len(Ego_traj_) > 2:
+            dy_ego = (Ego_traj_[-1,2] - Ego_traj_[-2,2]) / (Ego_traj_[-2,3] * Vehicle.dt)
+            steer_ego = pi_2_pi(-math.atan(Vehicle.WB * dy_ego))
+            dy_human = (Human_traj_[-1,2] - Human_traj_[-2,2]) / (Human_traj_[-2,3] * Vehicle.dt)
+            steer_human = pi_2_pi(-math.atan(Vehicle.WB * dy_human))
+        else:
+            steer_ego = 0.0
+            steer_human = 0.0
+        
+        draw.draw_car(Ego_traj_[-1,0], Ego_traj_[-1,1], Ego_traj_[-1,2], steer_ego, Vehicle, Collision, color='yellow', alpha=1)
+        draw.draw_car(Human_traj_[-1,0], Human_traj_[-1,1], Human_traj_[-1,2], steer_human, Vehicle, Collision, color='grey', alpha=1)
+        
+        plt.xlabel('X (m)', fontsize=12)
+        plt.ylabel('Y (m)', fontsize=12)
+        plt.title('Vehicle Trajectories', fontsize=14)
+        plt.legend(loc='upper right')
+        plt.grid(True, alpha=0.3)
+        plt.savefig(f'{result_dir}/trajectories.png', dpi=300, bbox_inches='tight')
+        print(f"Trajectories saved to: {result_dir}/trajectories.png")
+        plt.close()
+        
+        # Save as GIF animation (optional, requires imageio)
+        try:
+            import imageio
+            from io import BytesIO
+            print("Creating GIF animation...")
+            frames = []
+            
+            for k in range(0, len(Human_traj), max(1, len(Human_traj)//100)):  # Sample frames for GIF
+                fig = plt.figure(figsize=(12, 12))
+                plot_intersection(rd_width, rd_length, 30)
+                
+                plt.plot(Human_traj_[:k+1,0], Human_traj_[:k+1,1], '-', color='grey', linewidth=2, alpha=0.7)
+                plt.plot(Ego_traj_[:k+1,0], Ego_traj_[:k+1,1], '--', color='yellow', linewidth=2, alpha=0.7)
+                
+                if k > 2:
+                    dy_ego = (Ego_traj_[k,2] - Ego_traj_[k-2,2]) / (Ego_traj_[k-2,3] * Vehicle.dt)
+                    steer_ego = pi_2_pi(-math.atan(Vehicle.WB * dy_ego))
+                    dy_human = (Human_traj_[k,2] - Human_traj_[k-2,2]) / (Human_traj_[k-2,3] * Vehicle.dt)
+                    steer_human = pi_2_pi(-math.atan(Vehicle.WB * dy_human))
+                else:
+                    steer_ego = 0.0
+                    steer_human = 0.0
+                
+                draw.draw_car(Ego_traj_[k,0], Ego_traj_[k,1], Ego_traj_[k,2], steer_ego, Vehicle, Collision, color='yellow', alpha=1)
+                draw.draw_car(Human_traj_[k,0], Human_traj_[k,1], Human_traj_[k,2], steer_human, Vehicle, Collision, color='grey', alpha=1)
+                
+                plt.xlabel('X (m)', fontsize=12)
+                plt.ylabel('Y (m)', fontsize=12)
+                plt.title(f'Simulation Time: {k*dt:.1f}s', fontsize=14)
+                
+                # Save to buffer and read as image
+                buf = BytesIO()
+                plt.savefig(buf, format='png', dpi=100, bbox_inches='tight')
+                buf.seek(0)
+                frame = imageio.imread(buf)
+                frames.append(frame)
+                plt.close(fig)
+            
+            # Save GIF
+            imageio.mimsave(f'{result_dir}/trajectories_animation.gif', frames, fps=10)
+            print(f"GIF animation saved to: {result_dir}/trajectories_animation.gif")
+        except ImportError:
+            print("Note: imageio not installed. Skipping GIF creation. Install with: pip install imageio")
+        except Exception as e:
+            print(f"Note: Could not create GIF: {e}")
 
 
-    np.savez_compressed('./result/test_'+str(trial), \
+    np.savez_compressed(f'{result_dir}/test_{trial}', \
                         ego = Ego_traj, \
                         human = Human_traj, \
                         beta = BETA,\
@@ -463,7 +585,11 @@ for trial in range(0,1):
                         theta = THETA, \
                         t_theta = theta,\
                         PassInter = PassInter,\
-                        Collision = Collision )  
+                        Collision = Collision )
+    print(f"Simulation data saved to: {result_dir}/test_{trial}.npz")
+    
+    # Analyze and visualize results
+    analyze_and_visualize_results(f'{result_dir}/test_{trial}.npz', result_dir, rd_width, rd_length)
 
     
     
