@@ -17,7 +17,7 @@ import utils.draw as draw
 from utils.scenario import *
 import utils.Reference as rf
 
-from motion_planning.MPPI import *
+from motion_planning.reachability_planner import ReachabilityPlanner
 from motion_planning.inference import *
 from motion_planning.dynamics import *
 from motion_planning.vehicle_model import *
@@ -36,8 +36,9 @@ warnings.filterwarnings(action='ignore')
 for trial in range(0,1):
     
     # Create timestamped result directory
+    # All results (plots, data files, analysis) will be saved to SRP folder
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    result_dir = f'./result/AMP/{timestamp}'
+    result_dir = f'./result/SRP/{timestamp}'  # SRP = Sampling-based Reachability Planning
     os.makedirs(result_dir, exist_ok=True)
     print(f"Results will be saved to: {result_dir}")
     
@@ -53,7 +54,7 @@ for trial in range(0,1):
     ## Parameters for reciding horizon
     dt = 0.1
     N_ilq = 8
-    N = 8
+    N = 2
     N_sim = 100
 
     rd_width = 4
@@ -117,6 +118,7 @@ for trial in range(0,1):
         plt.legend(loc='best', fontsize=10)
         plt.grid(True, alpha=0.3)
         plt.axis('equal')
+        # Save reference trajectories plot to SRP folder
         plt.savefig(f'{result_dir}/reference_trajectories.png', dpi=300, bbox_inches='tight')
         print(f"Reference trajectories saved to: {result_dir}/reference_trajectories.png")
         plt.close()
@@ -280,16 +282,19 @@ for trial in range(0,1):
     pass_inter = False
     
 
-    ## Robot motion planning
-    K = 3000  # Number of robot action sample
-    K2 = 4    # Number of human action sample
+    ## Robot motion planning - Reachability-Based Planning
+    K_R = 10      # Number of robot candidate control sequences
+    K_int = 10      # Number of internal state samples
+    d_safe = 3.5    # Safety distance threshold
     ca_lat_bd = 1.5 # ellipsoid length for collision avoidance
     ca_lon_bd = 3.5 # ellipsoid length for collision avoidance
-   
-    Ego_opt = mppi()
-    Ego_opt.set_params(N, K, K2, x_lim, u_lim, x_dim, uR_dim, dt, L)
-    Ego_opt.set_cost(Car_cost_R.weights, RH_A, RH_D, W, wac = 1, ca_lat_bd=ca_lat_bd, ca_lon_bd=ca_lon_bd)
-    active = True # Boolean: Active inference vs. Passive inference
+    
+    Ego_opt = ReachabilityPlanner()
+    Ego_opt.set_params(N, K_R, K_int, x_lim, u_lim, x_dim, uR_dim, dt, L, d_safe)
+    Ego_opt.set_cost(Car_cost_R.weights, RH_A, RH_D, W, wac=1, ca_lat_bd=ca_lat_bd, ca_lon_bd=ca_lon_bd)
+    Ego_opt.set_human_models(dynamics_A, dynamics_D, ilq_results_A, ilq_results_D, beta_w=True)
+    
+    active = True # Boolean: Active inference vs. Passive inference (not used in reachability planning)
     beta_w = True # Boolean: With rationality vs. Wihtout consideration
 
     ## Paramters for saving result data
@@ -324,7 +329,7 @@ for trial in range(0,1):
         ilq_results_A.solveiLQgame(x0)
         ilq_results_D.solveiLQgame(x0)
 
-        uR  = Ego_opt.solve_mppi(x0, ilq_results_A, ilq_results_D, theta_prob, beta_distr, active, beta_w)
+        uR  = Ego_opt.solve(x0, ilq_results_A, ilq_results_D, theta_prob, beta_distr, active, beta_w)
         xR = Ego.update(x0[4:],uR)
 
 
@@ -541,6 +546,7 @@ for trial in range(0,1):
         plt.title('Vehicle Trajectories', fontsize=14)
         plt.legend(loc='upper right')
         plt.grid(True, alpha=0.3)
+        # Save final trajectories plot to SRP folder
         plt.savefig(f'{result_dir}/trajectories.png', dpi=300, bbox_inches='tight')
         print(f"Trajectories saved to: {result_dir}/trajectories.png")
         plt.close()
@@ -583,7 +589,7 @@ for trial in range(0,1):
                 frames.append(frame)
                 plt.close(fig)
             
-            # Save GIF
+            # Save GIF animation to SRP folder
             imageio.mimsave(f'{result_dir}/trajectories_animation.gif', frames, fps=10)
             print(f"GIF animation saved to: {result_dir}/trajectories_animation.gif")
         except ImportError:
@@ -592,6 +598,7 @@ for trial in range(0,1):
             print(f"Note: Could not create GIF: {e}")
 
 
+    # Save simulation data to SRP folder
     np.savez_compressed(f'{result_dir}/test_{trial}', \
                         ego = Ego_traj, \
                         human = Human_traj, \
@@ -605,10 +612,11 @@ for trial in range(0,1):
     print(f"Simulation data saved to: {result_dir}/test_{trial}.npz")
     print(f"Simulation duration saved: {sim_duration:.2f} seconds")
     
-    # Analyze and visualize results
+    # Analyze and visualize results (saves analysis_results.png and key_statistics.txt to SRP folder)
     analyze_and_visualize_results(f'{result_dir}/test_{trial}.npz', result_dir, rd_width, rd_length)
 
     
     
+
 
 

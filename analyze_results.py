@@ -30,6 +30,11 @@ def analyze_and_visualize_results(npz_path, result_dir, rd_width=4, rd_length=40
     pass_inter = bool(data['PassInter'])
     collision = bool(data['Collision'])
     
+    # Load simulation duration if available
+    sim_duration = None
+    if 'sim_duration' in data:
+        sim_duration = float(np.array(data['sim_duration']).item())
+    
     print("\n" + "=" * 60)
     print("Simulation Results Analysis")
     print("=" * 60)
@@ -38,6 +43,8 @@ def analyze_and_visualize_results(npz_path, result_dir, rd_width=4, rd_length=40
     print(f"Successfully Passed Intersection: {pass_inter}")
     print(f"Collision Occurred: {collision}")
     print(f"Total Simulation Steps: {len(ego_traj)}")
+    if sim_duration is not None:
+        print(f"Total Simulation Time: {sim_duration:.2f} seconds ({sim_duration/60:.2f} minutes)")
     print("=" * 60)
     
     # Convert to numpy arrays
@@ -174,6 +181,8 @@ def analyze_and_visualize_results(npz_path, result_dir, rd_width=4, rd_length=40
     print(f"Mean Distance Between Vehicles: {np.mean(distances):.2f} m")
     print(f"Final Ego Velocity: {ego_traj[-1, 3] * 3.6:.2f} km/h")
     print(f"Final Human Velocity: {human_traj[-1, 3] * 3.6:.2f} km/h")
+    if sim_duration is not None:
+        print(f"Total Simulation Time: {sim_duration:.2f} seconds ({sim_duration/60:.2f} minutes)")
     print("=" * 60)
     
     # Save statistics to txt file
@@ -191,6 +200,8 @@ def analyze_and_visualize_results(npz_path, result_dir, rd_width=4, rd_length=40
         f.write(f"Mean Distance Between Vehicles: {np.mean(distances):.2f} m\n")
         f.write(f"Final Ego Velocity: {ego_traj[-1, 3] * 3.6:.2f} km/h\n")
         f.write(f"Final Human Velocity: {human_traj[-1, 3] * 3.6:.2f} km/h\n")
+        if sim_duration is not None:
+            f.write(f"Total Simulation Time: {sim_duration:.2f} seconds ({sim_duration/60:.2f} minutes)\n")
         f.write("=" * 60 + "\n")
     print(f"\nKey statistics saved to: {stats_file_path}")
 
